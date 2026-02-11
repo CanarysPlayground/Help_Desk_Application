@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Helpdesk CRM</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 8px; }
+    section { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    label { display: block; margin: 6px 0 2px; }
+    input, textarea { width: 320px; max-width: 90vw; padding: 8px; margin-bottom: 10px; }
+    button { padding: 8px 12px; margin-right: 8px; cursor: pointer; }
+    pre { background: #f7f7f7; padding: 12px; overflow: auto; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Simple Helpdesk CRM</h1>
+  <p class="muted">Backend on this origin. Use the controls below.</p>
+
+  <section>
+    <h2>Health</h2>
+    <button id="btnHealth">Check Health</button>
+    <pre id="outHealth"></pre>
+  </section>
+
+  <section>
+    <h2>Customers</h2>
+    <div class="row">
+      <div>
+        <h3>Create Customer</h3>
+        <label for="custName">Name</label>
+        <input id="custName" placeholder="John Doe" />
+        <label for="custEmail">Email</label>
+        <input id="custEmail" placeholder="john@example.com" />
+        <div>
+          <button id="btnCreateCustomer">Create</button>
+        </div>
+        <pre id="outCreateCustomer"></pre>
+      </div>
+
+      <div>
+        <h3>List Customers</h3>
+        <button id="btnListCustomers">Load Customers</button>
+        <pre id="outListCustomers"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tickets</h2>
+    <div class="row">
+      <div>
+        <h3>Create Ticket</h3>
+        <label for="ticketTitle">Title</label>
+        <input id="ticketTitle" placeholder="Login Issue" />
+        <label for="ticketDesc">Description</label>
+        <textarea id="ticketDesc" placeholder="Cannot login"></textarea>
+        <label for="ticketSeverity">Severity</label>
+        <select id="ticketSeverity">
+          <option value="low" selected>Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+        <label for="ticketCustomer">Customer</label>
+        <select id="ticketCustomer">
+          <option value="" disabled selected>Loading customers…</option>
+        </select>
+        <div>
+          <button id="btnCreateTicket">Create</button>
+        </div>
+        <pre id="outCreateTicket"></pre>
+      </div>
+
+      <div>
+        <h3>List Tickets</h3>
+        <button id="btnListTickets">Load Tickets</button>
+        <pre id="outListTickets"></pre>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const json = (obj) => JSON.stringify(obj, null, 2);
+
+    async function call(path, opts = {}) {
+      const res = await fetch(path, {
+        ...opts,
+        headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(res.status + " " + res.statusText + " - " + text);
+      }
+      const ct = res.headers.get("content-type") || "";
+      return ct.includes("application/json") ? res.json() : res.text();
+    }
+
+    // Health
+    document.getElementById("btnHealth").onclick = async () => {
+      const out = document.getElementById("outHealth");
+      out.textContent = "Loading...";
+      try { out.textContent = json(await call("/health")); }
+      catch (e) { out.textContent = e.message; }
+    };
+
+    // Customers: Create
+    document.getElementById("btnCreateCustomer").onclick = async () => {
+      const name = document.getElementById("custName").value.trim();
+      const email = document.getElementById("custEmail").value.trim();
+      const out = document.getElementById("outCreateCustomer");
+      out.textContent = "Submitting...";
+      try {
+        const resp = await call("/customers/", {
+          method: "POST",
+          body: JSON.stringify({ name, email }),
+        });
+        out.textContent = json(resp);
+      } catch (e) { out.textContent = e.message; }
+    };
+
+    // Customers: List
+    document.getElementById("btnListCustomers").onclick = async () => {
+      const out = document.getElementById("outListCustomers");
+      out.textContent = "Loading...";
+      try { out.textContent = json(await call("/customers/")); }
+      catch (e) { out.textContent = e.message; }
+    };
+
+    // Tickets: Create
+    document.getElementById("btnCreateTicket").onclick = async () => {
+      const title = document.getElementById("ticketTitle").value.trim();
+      const description = document.getElementById("ticketDesc").value.trim();
+      const customerSelect = document.getElementById("ticketCustomer");
+      const customer_id = Number(customerSelect.value);
+      const severity = document.getElementById("ticketSeverity").value;
+      const out = document.getElementById("outCreateTicket");
+      out.textContent = "Submitting...";
+      try {
+        if (!customer_id) throw new Error("Please choose a customer");
+        const resp = await call("/tickets/", {
+          method: "POST",
+          body: JSON.stringify({ title, description, customer_id, severity }),
+        });
+        out.textContent = json(resp);
+      } catch (e) { out.textContent = e.message; }
+    };
+    // Populate Ticket Customer dropdown
+    async function loadCustomersDropdown() {
+      const sel = document.getElementById("ticketCustomer");
+      try {
+        const customers = await call("/customers/");
+        sel.innerHTML = "";
+        if (!Array.isArray(customers) || customers.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.disabled = true;
+          opt.selected = true;
+          opt.textContent = "No customers found";
+          sel.appendChild(opt);
+          return;
+        }
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        placeholder.textContent = "Select a customer";
+        sel.appendChild(placeholder);
+        for (const c of customers) {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = `${c.name} (${c.email})`;
+          sel.appendChild(opt);
+        }
+      } catch (e) {
+        sel.innerHTML = "";
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.disabled = true;
+        opt.selected = true;
+        opt.textContent = "Failed to load customers";
+        sel.appendChild(opt);
+      }
+    }
+
+    // Load dropdown on page ready
+    window.addEventListener("DOMContentLoaded", loadCustomersDropdown);
+
+    // Tickets: List
+    document.getElementById("btnListTickets").onclick = async () => {
+      const out = document.getElementById("outListTickets");
+      out.textContent = "Loading...";
+      try { out.textContent = json(await call("/tickets/")); }
+      catch (e) { out.textContent = e.message; }
+    };
+  </script>
+</body>
+</html>
