@@ -32,7 +32,7 @@ app.include_router(ticket_routes.router, prefix="/tickets", tags=["Tickets"])
 
 @app.get("/", include_in_schema=False)
 def index(request: Request):
-  return templates.TemplateResponse("index.html", {"request": request})
+  return templates.TemplateResponse(request, "index.html")
 
 @app.get("/health")
 def health_check():
