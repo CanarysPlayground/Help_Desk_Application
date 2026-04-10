@@ -4,3 +4,5 @@ sqlalchemy>=2.0
 pydantic>=2.0
 python-dotenv
 email-validator
+jinja2==3.1.6
+
